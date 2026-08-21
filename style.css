@@ -1,81 +1,110 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&family=Playfair+Display:ital@1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 
-/* Główne tło - matowa czerń z bardzo subtelnym, ciepłym przejściem (efekt ciemnego płótna/drewna) */
+/* Reset i główne tło (kremowe z wizualizacji) */
 .stApp {
-    background: linear-gradient(135deg, #0d0d0d 0%, #1a1816 100%);
-    color: #e0e0e0;
+    background-color: #F8F7F4;
+    font-family: 'Montserrat', sans-serif;
+    color: #0F172A;
 }
 
-/* Panel logowania - półprzezroczysta matowa czerń */
+/* Ograniczenie szerokości - aplikacja ma wyglądać jak na telefonie nawet na PC */
 .block-container {
-    background-color: rgba(18, 18, 18, 0.7);
-    border: 1px solid #2a2520;
-    border-radius: 4px;
-    box-shadow: 0 15px 40px rgba(0,0,0,0.7);
-    padding: 3rem !important;
+    max-width: 500px !important;
+    padding-top: 2rem !important;
+    padding-bottom: 5rem !important;
 }
 
-/* Główny nagłówek - artystyczny, galeryjny sznyt */
-h1 {
-    font-family: 'Playfair Display', serif !important;
-    font-style: italic;
-    color: #c9a75c !important; /* Zgaszone złoto / mosiądz */
+/* Ukrycie pasków narzędzi Streamlit (żeby wyglądało jak prawdziwa apka) */
+header {visibility: hidden;}
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Główne nagłówki */
+h1, h2, h3, p {
+    color: #0F172A !important;
+    font-family: 'Montserrat', sans-serif !important;
+}
+
+.title-sqm {
+    font-size: 24px;
+    font-weight: 700;
     text-align: center;
-    border-bottom: 1px solid #332b25;
-    padding-bottom: 1rem;
-    margin-bottom: 2rem;
-    font-weight: normal !important;
-}
-
-/* Reszta tekstów - czysty, czytelny minimalizm */
-h2, h3, p, div, label, span {
-    font-family: 'Montserrat', sans-serif !important;
-    font-weight: 300;
-    color: #b5b5b5 !important;
-}
-
-/* Pola wprowadzania danych (Matte) */
-input, div[data-baseweb="select"] > div {
-    background-color: #141414 !important;
-    color: #e0e0e0 !important;
-    border: 1px solid #332b25 !important;
-    border-radius: 0 !important;
-    font-family: 'Montserrat', sans-serif !important;
-}
-
-input:focus, div[data-baseweb="select"] > div:focus-within {
-    border-color: #c9a75c !important;
-    box-shadow: none !important;
-}
-
-/* Przyciski - eleganckie, bez wypełnienia, dopóki nie najedziesz */
-.stButton > button {
-    background-color: #141414 !important;
-    color: #c9a75c !important;
-    border: 1px solid #c9a75c !important;
-    border-radius: 0 !important;
-    font-weight: 400 !important;
     letter-spacing: 2px;
+    margin-bottom: 0;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #C9A75C; /* Złoty akcent */
+    text-align: center;
     text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 0;
+    margin-bottom: 2rem;
+}
+
+/* Pola tekstowe i select (czyste, białe, zaokrąglone) */
+.stTextInput>div>div>input, div[data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 8px !important;
+    color: #0F172A !important;
+    padding: 10px !important;
+    font-weight: 500;
+}
+
+.stTextInput>div>div>input:focus, div[data-baseweb="select"] > div:focus-within {
+    border-color: #C9A75C !important;
+    box-shadow: 0 0 0 1px #C9A75C !important;
+}
+
+/* Główny przycisk logowania (Granatowy) */
+.stButton>button {
+    background-color: #0F172A !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
     width: 100%;
-    transition: all 0.4s ease;
+    padding: 0.75rem !important;
+    transition: 0.3s;
 }
 
-.stButton > button:hover {
-    background-color: #c9a75c !important;
-    color: #0d0d0d !important;
+.stButton>button:hover {
+    background-color: #1E293B !important;
+    color: #C9A75C !important;
 }
 
-/* Strefa upuszczania plików (Upload CMR) */
-section[data-testid="stFileUploadDropzone"] {
-    background-color: rgba(20, 20, 20, 0.5) !important;
-    border: 1px dashed #c9a75c !important;
-    border-radius: 0 !important;
-}
-
-/* Komunikaty w aplikacji */
+/* Ramki Notatek (Białe kafelki z cieniem) */
 div[data-testid="stAlert"] {
-    background-color: #1a1816 !important;
-    border-left: 4px solid #c9a75c !important;
-    color: #e0e0e0 !important;
+    background-color: #FFFFFF !important;
+    border: none !important;
+    border-left: 4px solid #C9A75C !important; /* Złoty pasek po lewej */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05) !important;
+    border-radius: 8px !important;
+    color: #0F172A !important;
+}
+
+/* Rozwijane sekcje (Expandery) */
+.streamlit-expanderHeader {
+    background-color: #FFFFFF !important;
+    border-radius: 8px !important;
+    border: 1px solid #E2E8F0 !important;
+    font-weight: 600 !important;
+    color: #0F172A !important;
+}
+
+.streamlit-expanderContent {
+    background-color: #F8F7F4 !important;
+    border: 1px solid #E2E8F0 !important;
+    border-top: none !important;
+    border-bottom-left-radius: 8px !important;
+    border-bottom-right-radius: 8px !important;
+}
+
+/* Upload Dropzone */
+section[data-testid="stFileUploadDropzone"] {
+    background-color: #FFFFFF !important;
+    border: 1px dashed #C9A75C !important;
+    border-radius: 8px !important;
 }
