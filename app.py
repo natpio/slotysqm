@@ -1,51 +1,38 @@
 import streamlit as st
 import pandas as pd
-import io
 from streamlit_gsheets import GSheetsConnection
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 
 # Konfiguracja strony
-st.set_page_config(page_title="SYSTEM 64", page_icon="💾", layout="centered")
-
-# --- WCZYTYWANIE CSS ---
-def load_css(file_name):
-    try:
-        with open(file_name, "r") as f:
-            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-    except FileNotFoundError:
-        st.warning("Nie znaleziono pliku style.css")
-
-load_css("style.css")
-
-# --- DANE KONFIGURACYJNE ---
-# ID folderu na Google Drive, do którego mają trafiać skany/CMR
-# Znajdziesz je w URL folderu: drive.google.com/drive/folders/TUTAJ_JEST_ID
-DRIVE_FOLDER_ID = "TWÓJ_ID_FOLDERU_NA_DRIVE" 
+st.set_page_config(page_title="Portal Technika", page_icon="📦", layout="centered")
 
 # Pobranie danych z Google Sheets
+# Upewnij się, że w secrets.toml masz skonfigurowane połączenie GSheets
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read(worksheet="Dostep", ttl=60)
+df = conn.read(worksheet="Dostep", ttl=60) # ttl=60 odświeża cache co minutę
 
-# --- INTERFEJS RETRO ---
-st.markdown("<h1>**** TERMINAL TECHNIKA ****<br><br>64K RAM SYSTEM  38911 BYTES FREE<br><br>READY.</h1>", unsafe_allow_html=True)
+# Interfejs logowania
+st.title("📦 Panel Technika")
+st.write("Wybierz event i podaj swoje dane, aby uzyskać dostęp do slotów i notatek.")
 
-# Pobranie listy eventów
+# Pobranie unikalnej listy eventów (pomijanie pustych)
 lista_eventow = df['Event'].dropna().unique().tolist()
-lista_eventow.insert(0, "--- WYBIERZ ---")
+lista_eventow.insert(0, "--- Wybierz ---")
 
+# Formularz logowania
 with st.container():
-    event = st.selectbox("EVENT:", lista_eventow)
-    nazwisko = st.text_input("NAZWISKO:")
-    pin = st.text_input("PIN (6 CYFR):", type="password", max_chars=6)
+    event = st.selectbox("Wybierz event", lista_eventow)
+    nazwisko = st.text_input("Nazwisko")
+    # type="password" ukrywa wpisywane znaki
+    pin = st.text_input("6-cyfrowe hasło", type="password", max_chars=6)
     
-    zaloguj = st.button("RUN")
+    zaloguj = st.button("Zaloguj", type="primary", use_container_width=True)
 
+# Logika weryfikacji
 if zaloguj:
-    if event == "--- WYBIERZ ---" or not nazwisko or not pin:
-        st.error("SYNTAX ERROR WPROWADZ DANE")
+    if event == "--- Wybierz ---" or not nazwisko or not pin:
+        st.warning("Proszę wypełnić wszystkie pola.")
     else:
+        # Filtrowanie DataFrame (case-insensitive dla nazwiska, traktowanie PINu jako string)
         user_data = df[
             (df['Event'] == event) & 
             (df['Nazwisko'].astype(str).str.lower() == nazwisko.lower()) & 
@@ -53,54 +40,22 @@ if zaloguj:
         ]
         
         if not user_data.empty:
-            st.success(f"WITAJ {nazwisko.upper()}. LOGOWANIE OK.")
+            st.success(f"Witaj, {nazwisko.title()}! Zalogowano pomyślnie.")
             st.divider()
             
+            # Ekstrakcja danych dla zalogowanego technika
             notatki = user_data.iloc[0]['Notatki']
             link_pdf = user_data.iloc[0]['Link_PDF']
             
-            st.write(">> NOTATKI OPERACYJNE:")
-            st.info(notatki if pd.notna(notatki) else "BRAK NOTATEK")
+            st.subheader("📝 Notatki operacyjne")
+            st.info(notatki if pd.notna(notatki) else "Brak dodatkowych notatek do tego eventu.")
             
-            st.write(">> PLIKI SLOTOW:")
+            st.subheader("📄 Pliki do pobrania (Sloty)")
             if pd.notna(link_pdf):
-                st.link_button("LOAD \"SLOT_PDF\",8,1", link_pdf)
+                # Nowoczesny przycisk linkujący (dostępny w nowszych wersjach Streamlit)
+                st.link_button("Otwórz / Pobierz PDF (Google Drive)", link_pdf)
             else:
-                st.warning("FILE NOT FOUND")
-            
-            st.divider()
-            
-            # --- SEKCJA UPLOADU (NP. CMR) ---
-            st.write(">> UPLOAD DOKUMENTOW (CMR/ZDJECIA):")
-            uploaded_file = st.file_uploader("WYBIERZ PLIK DO PRZESLANIA", type=['pdf', 'jpg', 'jpeg', 'png'])
-            
-            if uploaded_file is not None:
-                upload_btn = st.button("WYSLIJ NA DYSK")
+                st.warning("Brak przypisanego pliku PDF.")
                 
-                if upload_btn:
-                    with st.spinner("TRWA PRZESYLANIE..."):
-                        try:
-                            # Połączenie z Google Drive API używając tych samych kluczy co st-gsheets
-                            creds_dict = st.secrets["connections"]["gsheets"]
-                            creds = service_account.Credentials.from_service_account_info(
-                                creds_dict, scopes=["https://www.googleapis.com/auth/drive"]
-                            )
-                            drive_service = build('drive', 'v3', credentials=creds)
-                            
-                            # Budowa nazwy pliku: Event_Nazwisko_OryginalnaNazwa
-                            file_name_drive = f"{event}_{nazwisko}_{uploaded_file.name}"
-                            
-                            media = MediaIoBaseUpload(io.BytesIO(uploaded_file.read()), mimetype=uploaded_file.type, resumable=True)
-                            file_metadata = {
-                                'name': file_name_drive,
-                                'parents': [DRIVE_FOLDER_ID]
-                            }
-                            
-                            request = drive_service.files().create(body=file_metadata, media_body=media, fields='id')
-                            response = request.execute()
-                            
-                            st.success("PRZESYLANIE ZAKONCZONE SUKCESEM.")
-                        except Exception as e:
-                            st.error(f"ERROR: {e}")
         else:
-            st.error("ACCESS DENIED. BLEDNE DANE.")
+            st.error("Nieprawidłowe dane. Sprawdź wybrany event, nazwisko oraz PIN.")
