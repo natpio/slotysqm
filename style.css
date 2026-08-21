@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* Główne tło (Ramka C64) */
+.stApp {
+    background-color: #352879;
+}
+
+/* Wewnętrzny ekran (Ekran roboczy C64) */
+.block-container {
+    background-color: #483AAA;
+    border: 15px solid #352879;
+    padding: 2rem !important;
+}
+
+/* Wszystkie teksty i nagłówki */
+h1, h2, h3, p, div, label, span {
+    color: #A392FF !important;
+    font-family: 'Press Start 2P', monospace !important;
+    font-size: 14px;
+    line-height: 1.5;
+    text-transform: uppercase;
+}
+
+h1 {
+    font-size: 20px !important;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+/* Pola tekstowe i selectboxy */
+input, div[data-baseweb="select"] > div {
+    background-color: #352879 !important;
+    color: #A392FF !important;
+    border: 2px solid #A392FF !important;
+    font-family: 'Press Start 2P', monospace !important;
+    border-radius: 0 !important;
+}
+
+/* Przycisk akcji */
+.stButton > button {
+    background-color: #352879 !important;
+    color: #A392FF !important;
+    border: 4px solid #A392FF !important;
+    border-radius: 0 !important;
+    font-family: 'Press Start 2P', monospace !important;
+    text-transform: uppercase;
+    width: 100%;
+}
+
+.stButton > button:hover {
+    background-color: #A392FF !important;
+    color: #352879 !important;
+}
+
+/* Komunikaty sukcesu/błędów (zmienione pod paletę retro) */
+div[data-testid="stAlert"] {
+    background-color: #352879 !important;
+    border: 2px dashed #A392FF !important;
+    color: #A392FF !important;
+}
+
+/* Strefa upuszczania plików (File Uploader) */
+section[data-testid="stFileUploadDropzone"] {
+    background-color: #352879 !important;
+    border: 2px dashed #A392FF !important;
+    border-radius: 0 !important;
+}
