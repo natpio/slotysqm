@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
+import base64
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2 import service_account
@@ -11,6 +12,30 @@ from fpdf import FPDF
 # --- KONFIGURACJA STRONY ---
 st.set_page_config(page_title="SQM Hub", page_icon="📱", layout="centered", initial_sidebar_state="collapsed")
 
+# --- ŁADOWANIE TŁA GRAFICZNEGO ---
+def set_bg_from_local(image_file):
+    try:
+        with open(image_file, "rb") as file:
+            encoded_string = base64.b64encode(file.read()).decode()
+        st.markdown(
+            f"""
+            <style>
+            .stApp {{
+                background-image: url(data:image/png;base64,{encoded_string});
+                background-size: cover;
+                background-position: center;
+                background-attachment: fixed;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    except FileNotFoundError:
+        st.warning("Nie znaleziono pliku tła (tlosloty.png).")
+
+set_bg_from_local("tlosloty.png")
+
+# --- ŁADOWANIE CSS ---
 def load_css(file_name):
     try:
         with open(file_name, "r") as f:
@@ -20,10 +45,10 @@ def load_css(file_name):
 
 load_css("style.css")
 
-# ID folderu na Google Drive (Podmień na własne)
+# ID folderu na Google Drive (Pamiętaj o podmianie na swój docelowy folder)
 DRIVE_FOLDER_ID = "TWÓJ_ID_FOLDERU_NA_DRIVE" 
 
-# --- FUNKCJA DO CMR ---
+# --- FUNKCJA DO GENEROWANIA CMR ---
 def create_cmr_pdf(event_name, technician_name):
     def clean_pl(text):
         pl_chars = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
@@ -44,7 +69,7 @@ def create_cmr_pdf(event_name, technician_name):
     pdf.cell(0, 8, "ODBIORCA: SQM Multimedia Solutions, ul. Wiosenna, Komorniki", ln=True)
     return pdf.output(dest='S')
 
-# --- POŁĄCZENIE Z BAZĄ ---
+# --- POŁĄCZENIE Z BAZĄ GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df = conn.read(worksheet="Dostep", ttl=60)
 
@@ -68,6 +93,7 @@ if zaloguj:
     if event == "Wybierz z listy..." or not nazwisko or not pin:
         st.error("Wypełnij wszystkie pola, aby uzyskać dostęp.")
     else:
+        # Oczyszczanie danych zapobiegające błędom spacji i typów liczbowych
         df['Event_clean'] = df['Event'].astype(str).str.strip()
         df['Nazwisko_clean'] = df['Nazwisko'].astype(str).str.strip().str.lower()
         df['PIN_clean'] = df['PIN'].astype(str).str.split('.').str[0].str.strip()
@@ -138,6 +164,6 @@ if zaloguj:
                                 drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
                                 st.success("Plik wysłany do centrali!")
                             except Exception as e:
-                                st.error("Wystąpił problem z wysyłaniem.")
+                                st.error("Wystąpił problem z wysyłaniem. Sprawdź połączenie z dyskiem.")
         else:
             st.error("Błędne dane autoryzacyjne. Spróbuj ponownie.")
