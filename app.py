@@ -48,7 +48,7 @@ load_css("style.css")
 # ID folderu na Google Drive (Pamiętaj o podmianie na swój docelowy folder)
 DRIVE_FOLDER_ID = "TWÓJ_ID_FOLDERU_NA_DRIVE" 
 
-# --- FUNKCJA DO GENEROWANIA CMR ---
+# --- FUNKCJA DO GENEROWANIA CMR (Z ŁATKĄ DLA STREAMLIT) ---
 def create_cmr_pdf(event_name, technician_name):
     def clean_pl(text):
         pl_chars = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
@@ -62,12 +62,22 @@ def create_cmr_pdf(event_name, technician_name):
     pdf.set_font("Helvetica", 'B', 16)
     pdf.cell(0, 10, "LIST PRZEWOZOWY CMR (ZWROT)", ln=True, align="C")
     pdf.ln(10)
+    
     pdf.set_font("Helvetica", '', 12)
     pdf.cell(0, 8, f"Event: {clean_pl(event_name)}", ln=True)
     pdf.cell(0, 8, f"Technik / Kierowca: {clean_pl(technician_name).upper()}", ln=True)
     pdf.ln(10)
     pdf.cell(0, 8, "ODBIORCA: SQM Multimedia Solutions, ul. Wiosenna, Komorniki", ln=True)
-    return pdf.output(dest='S')
+    
+    # Zabezpieczenie typu pliku dla Streamlita
+    pdf_out = pdf.output(dest='S')
+    
+    if isinstance(pdf_out, bytearray):
+        return bytes(pdf_out)
+    elif isinstance(pdf_out, str):
+        return pdf_out.encode('latin-1')
+    
+    return bytes(pdf_out)
 
 # --- POŁĄCZENIE Z BAZĄ GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
