@@ -1,78 +1,81 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&family=Playfair+Display:ital@1&display=swap');
 
-/* Główne tło - głęboka, techniczna czerń */
+/* Główne tło - matowa czerń z bardzo subtelnym, ciepłym przejściem (efekt ciemnego płótna/drewna) */
 .stApp {
-    background-color: #050505;
+    background: linear-gradient(135deg, #0d0d0d 0%, #1a1816 100%);
+    color: #e0e0e0;
 }
 
-/* Ekran roboczy z neonowym obramowaniem i gradientem */
+/* Panel logowania - półprzezroczysta matowa czerń */
 .block-container {
-    background: linear-gradient(180deg, #0a0a0a 0%, #111 100%);
-    border-top: 3px solid #ff0055;
-    border-bottom: 3px solid #00f3ff;
-    box-shadow: 0 0 30px rgba(255, 0, 85, 0.15);
+    background-color: rgba(18, 18, 18, 0.7);
+    border: 1px solid #2a2520;
+    border-radius: 4px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.7);
     padding: 3rem !important;
-    border-radius: 10px;
 }
 
-/* Teksty i nagłówki */
-h1, h2, h3, p, div, label, span {
-    color: #e0e0e0 !important;
-    font-family: 'Orbitron', sans-serif !important;
-    letter-spacing: 1px;
-}
-
+/* Główny nagłówek - artystyczny, galeryjny sznyt */
 h1 {
-    color: #00f3ff !important;
-    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+    font-family: 'Playfair Display', serif !important;
+    font-style: italic;
+    color: #c9a75c !important; /* Zgaszone złoto / mosiądz */
     text-align: center;
-    text-transform: uppercase;
-    font-weight: 700 !important;
+    border-bottom: 1px solid #332b25;
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+    font-weight: normal !important;
 }
 
-/* Pola wprowadzania danych */
+/* Reszta tekstów - czysty, czytelny minimalizm */
+h2, h3, p, div, label, span {
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 300;
+    color: #b5b5b5 !important;
+}
+
+/* Pola wprowadzania danych (Matte) */
 input, div[data-baseweb="select"] > div {
-    background-color: #111 !important;
-    color: #00f3ff !important;
-    border: 1px solid #333 !important;
-    border-radius: 4px !important;
-    font-family: 'Orbitron', sans-serif !important;
+    background-color: #141414 !important;
+    color: #e0e0e0 !important;
+    border: 1px solid #332b25 !important;
+    border-radius: 0 !important;
+    font-family: 'Montserrat', sans-serif !important;
 }
 
 input:focus, div[data-baseweb="select"] > div:focus-within {
-    border-color: #00f3ff !important;
-    box-shadow: 0 0 8px rgba(0, 243, 255, 0.4) !important;
+    border-color: #c9a75c !important;
+    box-shadow: none !important;
 }
 
-/* Przyciski */
+/* Przyciski - eleganckie, bez wypełnienia, dopóki nie najedziesz */
 .stButton > button {
-    background-color: transparent !important;
-    color: #ff0055 !important;
-    border: 2px solid #ff0055 !important;
-    border-radius: 4px !important;
-    font-weight: 700 !important;
-    text-transform: uppercase;
+    background-color: #141414 !important;
+    color: #c9a75c !important;
+    border: 1px solid #c9a75c !important;
+    border-radius: 0 !important;
+    font-weight: 400 !important;
     letter-spacing: 2px;
+    text-transform: uppercase;
     width: 100%;
-    transition: all 0.3s ease;
+    transition: all 0.4s ease;
 }
 
 .stButton > button:hover {
-    background-color: #ff0055 !important;
-    color: #050505 !important;
-    box-shadow: 0 0 15px #ff0055;
+    background-color: #c9a75c !important;
+    color: #0d0d0d !important;
 }
 
-/* Strefa upuszczania plików */
+/* Strefa upuszczania plików (Upload CMR) */
 section[data-testid="stFileUploadDropzone"] {
-    background-color: #0a0a0a !important;
-    border: 2px dashed #00f3ff !important;
-    border-radius: 8px !important;
+    background-color: rgba(20, 20, 20, 0.5) !important;
+    border: 1px dashed #c9a75c !important;
+    border-radius: 0 !important;
 }
 
-/* Komunikaty sukcesu / ostrzeżenia */
+/* Komunikaty w aplikacji */
 div[data-testid="stAlert"] {
-    background-color: #111 !important;
-    border-left: 4px solid #00f3ff !important;
-    color: #fff !important;
+    background-color: #1a1816 !important;
+    border-left: 4px solid #c9a75c !important;
+    color: #e0e0e0 !important;
 }
