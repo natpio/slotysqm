@@ -1,67 +1,78 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
-/* Główne tło (Ramka C64) */
+/* Główne tło - głęboka, techniczna czerń */
 .stApp {
-    background-color: #352879;
+    background-color: #050505;
 }
 
-/* Wewnętrzny ekran (Ekran roboczy C64) */
+/* Ekran roboczy z neonowym obramowaniem i gradientem */
 .block-container {
-    background-color: #483AAA;
-    border: 15px solid #352879;
-    padding: 2rem !important;
+    background: linear-gradient(180deg, #0a0a0a 0%, #111 100%);
+    border-top: 3px solid #ff0055;
+    border-bottom: 3px solid #00f3ff;
+    box-shadow: 0 0 30px rgba(255, 0, 85, 0.15);
+    padding: 3rem !important;
+    border-radius: 10px;
 }
 
-/* Wszystkie teksty i nagłówki */
+/* Teksty i nagłówki */
 h1, h2, h3, p, div, label, span {
-    color: #A392FF !important;
-    font-family: 'Press Start 2P', monospace !important;
-    font-size: 14px;
-    line-height: 1.5;
-    text-transform: uppercase;
+    color: #e0e0e0 !important;
+    font-family: 'Orbitron', sans-serif !important;
+    letter-spacing: 1px;
 }
 
 h1 {
-    font-size: 20px !important;
+    color: #00f3ff !important;
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
     text-align: center;
-    margin-bottom: 2rem;
-}
-
-/* Pola tekstowe i selectboxy */
-input, div[data-baseweb="select"] > div {
-    background-color: #352879 !important;
-    color: #A392FF !important;
-    border: 2px solid #A392FF !important;
-    font-family: 'Press Start 2P', monospace !important;
-    border-radius: 0 !important;
-}
-
-/* Przycisk akcji */
-.stButton > button {
-    background-color: #352879 !important;
-    color: #A392FF !important;
-    border: 4px solid #A392FF !important;
-    border-radius: 0 !important;
-    font-family: 'Press Start 2P', monospace !important;
     text-transform: uppercase;
+    font-weight: 700 !important;
+}
+
+/* Pola wprowadzania danych */
+input, div[data-baseweb="select"] > div {
+    background-color: #111 !important;
+    color: #00f3ff !important;
+    border: 1px solid #333 !important;
+    border-radius: 4px !important;
+    font-family: 'Orbitron', sans-serif !important;
+}
+
+input:focus, div[data-baseweb="select"] > div:focus-within {
+    border-color: #00f3ff !important;
+    box-shadow: 0 0 8px rgba(0, 243, 255, 0.4) !important;
+}
+
+/* Przyciski */
+.stButton > button {
+    background-color: transparent !important;
+    color: #ff0055 !important;
+    border: 2px solid #ff0055 !important;
+    border-radius: 4px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
     width: 100%;
+    transition: all 0.3s ease;
 }
 
 .stButton > button:hover {
-    background-color: #A392FF !important;
-    color: #352879 !important;
+    background-color: #ff0055 !important;
+    color: #050505 !important;
+    box-shadow: 0 0 15px #ff0055;
 }
 
-/* Komunikaty sukcesu/błędów (zmienione pod paletę retro) */
-div[data-testid="stAlert"] {
-    background-color: #352879 !important;
-    border: 2px dashed #A392FF !important;
-    color: #A392FF !important;
-}
-
-/* Strefa upuszczania plików (File Uploader) */
+/* Strefa upuszczania plików */
 section[data-testid="stFileUploadDropzone"] {
-    background-color: #352879 !important;
-    border: 2px dashed #A392FF !important;
-    border-radius: 0 !important;
+    background-color: #0a0a0a !important;
+    border: 2px dashed #00f3ff !important;
+    border-radius: 8px !important;
+}
+
+/* Komunikaty sukcesu / ostrzeżenia */
+div[data-testid="stAlert"] {
+    background-color: #111 !important;
+    border-left: 4px solid #00f3ff !important;
+    color: #fff !important;
 }
