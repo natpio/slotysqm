@@ -190,12 +190,8 @@ if not saved_login:
                 df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
                 df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
                 
-                # 1. Szukamy pinu dedykowanego pod ten konkretny event (kod PIN dla danego eventu pobierany z Google Sheets)
+                # Szukamy pinu ściśle dedykowanego pod wybrany z listy event
                 pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == wybrany_event.strip().lower())]
-                
-                # 2. Jeśli brak pinu dedykowanego, szukamy pinu "Ogólny"
-                if pin_eventu.empty:
-                    pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == 'ogólny')]
                 
                 if not pin_eventu.empty:
                     poprawny_pin = pin_eventu.iloc[0]['PIN_clean']
@@ -206,7 +202,7 @@ if not saved_login:
                     else:
                         st.error("Błędny PIN ekipy dla tego wydarzenia.")
                 else:
-                    st.error("Błąd: W zakładce 'Uzytkownicy' brakuje konta z rolą 'Ekipa' i loginem 'Ogólny'.")
+                    st.error(f"Koordynator nie ustalił jeszcze numeru PIN dla eventu: {wybrany_event}.")
             else:
                 st.error("Najpierw wybierz wydarzenie z listy.")
 
