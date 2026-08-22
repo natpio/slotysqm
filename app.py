@@ -72,10 +72,8 @@ def czy_slot_aktywny(data_str):
     return True
 
 def parse_dates_for_gantt(data_str):
-    """Wyciąga daty i godziny (start i koniec) z tekstu na potrzeby wykresu Gantta."""
     if pd.isna(data_str): return None, None
     s = str(data_str)
-    # Format 2 dni: 28.08.2026, 22:00 - 29.08.2026, 01:00
     m2 = re.search(r'(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})[^\d]*(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})', s)
     if m2:
         try:
@@ -83,7 +81,6 @@ def parse_dates_for_gantt(data_str):
             end = datetime(int(m2.group(8)), int(m2.group(7)), int(m2.group(6)), int(m2.group(9)), int(m2.group(10)))
             return start, end
         except: pass
-    # Format 1 dzień: 24.08.2026, 08:00 - 11:00
     m1 = re.search(r'(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})[^\d]*(\d{2}):(\d{2})', s)
     if m1:
         try:
@@ -127,7 +124,7 @@ def generate_offline_pdf(df_slots, title_text):
             pdf.multi_cell(0, 6, f"Notatka: {clean_pl(notatki)}")
         
         pdf.ln(5)
-        pdf.cell(0, 0, "", "T") # Linia oddzielająca
+        pdf.cell(0, 0, "", "T") 
         pdf.ln(5)
         
     pdf_out = pdf.output(dest='S')
@@ -185,15 +182,33 @@ if not saved_login:
     elif rola_wybor == "📋 Tablica Eventu (Dla Ekipy)":
         lista_wydarzen = df_sloty['Event'].dropna().unique().tolist()
         wybrany_event = st.selectbox("Wybierz wydarzenie, na które jedziesz:", ["-- Wybierz --"] + lista_wydarzen)
-        pin_grupy = st.text_input("PIN Ekipy (Otrzymany na WhatsApp):", type="password")
+        pin_grupy = st.text_input("PIN Ekipy (Podaj hasło):", type="password")
         
         if st.button("OTWÓRZ TABLICĘ ZBIORCZĄ"):
-            if wybrany_event != "-- Wybierz --" and pin_grupy == st.secrets.get("team_pin", "1234"):
-                cookie_controller.set("sqm_login", wybrany_event, max_age=COOKIE_EXPIRY)
-                cookie_controller.set("sqm_role", "Team_Board", max_age=COOKIE_EXPIRY)
-                st.rerun()
+            if wybrany_event != "-- Wybierz --":
+                df_konta['Rola_clean'] = df_konta['Rola'].astype(str).str.strip().str.lower()
+                df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
+                df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
+                
+                # 1. Szukamy pinu dedykowanego pod ten konkretny event
+                pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == wybrany_event.strip().lower())]
+                
+                # 2. Jeśli brak pinu dedykowanego, szukamy pinu "Ogólny"
+                if pin_eventu.empty:
+                    pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == 'ogólny')]
+                
+                if not pin_eventu.empty:
+                    poprawny_pin = pin_eventu.iloc[0]['PIN_clean']
+                    if pin_grupy.strip() == poprawny_pin:
+                        cookie_controller.set("sqm_login", wybrany_event, max_age=COOKIE_EXPIRY)
+                        cookie_controller.set("sqm_role", "Team_Board", max_age=COOKIE_EXPIRY)
+                        st.rerun()
+                    else:
+                        st.error("Błędny PIN ekipy dla tego wydarzenia.")
+                else:
+                    st.error("Błąd: W zakładce 'Uzytkownicy' brakuje konta z rolą 'Ekipa' i loginem 'Ogólny'.")
             else:
-                st.error("Błędny PIN ekipy lub nie wybrano wydarzenia.")
+                st.error("Najpierw wybierz wydarzenie z listy.")
 
     elif rola_wybor == "⚙️ Panel Koordynatora":
         admin_pass = st.text_input("Hasło Główne:", type="password")
@@ -238,7 +253,6 @@ else:
             if not df_event.empty:
                 df_event = df_event.fillna("")
                 
-                # --- PRZYCISK OFFLINE PDF ---
                 pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
                 st.download_button(
                     label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
@@ -247,9 +261,8 @@ else:
                     mime="application/pdf",
                     use_container_width=True
                 )
-                st.write("") # Odstęp
+                st.write("") 
                 
-                # Renderowanie Kafelków
                 for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
                     kierowca = row.get('Nazwisko', 'Nieprzypisany')
                     auto = row.get('Auto', '')
@@ -282,7 +295,6 @@ else:
         tryb_admina = st.radio("Wybierz moduł:", ["📊 Wykres Gantta", "➕ Dodaj nowy slot", "✏️ Edytuj / Usuń istniejący"], horizontal=True)
         st.write("---")
         
-        # --- MODUŁ WIZUALNY: WYKRES GANTTA ---
         if tryb_admina == "📊 Wykres Gantta":
             st.write("### 📈 Harmonogram operacyjny (Gantt)")
             if df_sloty.empty:
@@ -312,7 +324,6 @@ else:
                         paper_bgcolor='rgba(0,0,0,0)', 
                         plot_bgcolor='rgba(0,0,0,0)'
                     )
-                    # Ustawiamy biały/jasny kolor czcionek na osiach wykresu, żeby pasowało do ciemnego tła
                     fig.update_xaxes(tickfont=dict(color='gray'))
                     fig.update_yaxes(tickfont=dict(color='black'))
                     
@@ -320,7 +331,6 @@ else:
                 else:
                     st.warning("Nie znaleziono odpowiednio sformatowanych dat dla tego eventu (wymagany format to np. '24.08.2026, 08:00 - 11:00').")
 
-        # --- DODAWANIE ---
         elif tryb_admina == "➕ Dodaj nowy slot":
             with st.form("add_form", clear_on_submit=True):
                 new_event = st.text_input("Nazwa Eventu")
@@ -359,7 +369,6 @@ else:
                                 st.rerun()
                             except Exception as e: st.error(f"Błąd bazy: {e}")
 
-        # --- EDYCJA ---
         elif tryb_admina == "✏️ Edytuj / Usuń istniejący":
             if df_sloty.empty:
                 st.warning("Baza slotów jest pusta.")
@@ -436,7 +445,6 @@ else:
                 moje_sloty = moje_sloty[moje_sloty['Czy_Aktywny'] == True]
                 
             if not moje_sloty.empty:
-                # --- PRZYCISK OFFLINE PDF (DLA TECHNIKA) ---
                 pdf_bytes = generate_offline_pdf(moje_sloty, f"Harmonogram - {saved_login}")
                 st.download_button(
                     label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
@@ -445,7 +453,7 @@ else:
                     mime="application/pdf",
                     use_container_width=True
                 )
-                st.write("") # Odstęp
+                st.write("") 
                 
                 for index, row in moje_sloty.sort_values(by='Data_Slotu').iterrows():
                     event_name = row.get('Event', 'Nieznany Event')
