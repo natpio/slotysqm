@@ -3,4 +3,4 @@ st-gsheets-connection
 pandas
 google-api-python-client
 google-auth
-fpdf2
+streamlit-cookies-controller
