@@ -58,20 +58,43 @@ h1, h2, h3, p {
     box-shadow: 0 0 0 1px #C9A75C !important;
 }
 
-/* Główny przycisk logowania (Granatowy) */
-.stButton>button {
+/* ==========================================
+   Wszystkie przyciski (logowanie, download, link)
+   ========================================== */
+div[data-testid="stButton"] button,
+div[data-testid="stDownloadButton"] button,
+div[data-testid="stLinkButton"] a {
     background-color: #0F172A !important;
-    color: #FFFFFF !important;
     border: none !important;
     border-radius: 8px !important;
-    font-weight: 600 !important;
-    width: 100%;
+    width: 100% !important;
     padding: 0.75rem !important;
-    transition: 0.3s;
+    transition: 0.3s !important;
+    text-decoration: none !important;
+    display: block;
+    text-align: center;
 }
 
-.stButton>button:hover {
+/* Wymuszenie białego tekstu wewnątrz przycisku 
+   (nadpisuje to ciemny kolor ustawiony wcześniej dla tagów <p>) */
+div[data-testid="stButton"] button *,
+div[data-testid="stDownloadButton"] button *,
+div[data-testid="stLinkButton"] a * {
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+}
+
+/* Hover effect - tło */
+div[data-testid="stButton"] button:hover,
+div[data-testid="stDownloadButton"] button:hover,
+div[data-testid="stLinkButton"] a:hover {
     background-color: #1E293B !important;
+}
+
+/* Hover effect - złoty tekst po najechaniu */
+div[data-testid="stButton"] button:hover *,
+div[data-testid="stDownloadButton"] button:hover *,
+div[data-testid="stLinkButton"] a:hover * {
     color: #C9A75C !important;
 }
 
