@@ -3,7 +3,9 @@ import pandas as pd
 import io
 import base64
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
+import plotly.express as px
+from fpdf import FPDF
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -11,7 +13,7 @@ from googleapiclient.http import MediaIoBaseUpload
 from streamlit_cookies_controller import CookieController
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="SQM Hub", page_icon="📱", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="SQM Hub", page_icon="📱", layout="wide", initial_sidebar_state="collapsed")
 
 # --- INICJALIZACJA CIASTECZEK (Na 30 dni) ---
 cookie_controller = CookieController()
@@ -54,26 +56,84 @@ def upload_to_drive(uploaded_file, event_name, tech_name):
     drive_service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
     return f"https://drive.google.com/file/d/{file_id}/view"
 
-# --- SYSTEM SPRAWDZANIA DAT (UKRYWANIE ZAKOŃCZONYCH) ---
+# --- FUNKCJE POMOCNICZE (DATY I GANTT) ---
 def czy_slot_aktywny(data_str):
-    if pd.isna(data_str) or str(data_str).strip() == "":
-        return True 
-    
+    if pd.isna(data_str) or str(data_str).strip() == "": return True 
     match_pl = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', str(data_str))
     if match_pl:
         try:
-            slot_date = datetime(int(match_pl.group(3)), int(match_pl.group(2)), int(match_pl.group(1))).date()
-            return slot_date >= datetime.today().date()
+            return datetime(int(match_pl.group(3)), int(match_pl.group(2)), int(match_pl.group(1))).date() >= datetime.today().date()
         except: pass
-        
     match_iso = re.search(r'(\d{4})-(\d{2})-(\d{2})', str(data_str))
     if match_iso:
         try:
-            slot_date = datetime(int(match_iso.group(1)), int(match_iso.group(2)), int(match_iso.group(3))).date()
-            return slot_date >= datetime.today().date()
+            return datetime(int(match_iso.group(1)), int(match_iso.group(2)), int(match_iso.group(3))).date() >= datetime.today().date()
         except: pass
-
     return True
+
+def parse_dates_for_gantt(data_str):
+    """Wyciąga daty i godziny (start i koniec) z tekstu na potrzeby wykresu Gantta."""
+    if pd.isna(data_str): return None, None
+    s = str(data_str)
+    # Format 2 dni: 28.08.2026, 22:00 - 29.08.2026, 01:00
+    m2 = re.search(r'(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})[^\d]*(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})', s)
+    if m2:
+        try:
+            start = datetime(int(m2.group(3)), int(m2.group(2)), int(m2.group(1)), int(m2.group(4)), int(m2.group(5)))
+            end = datetime(int(m2.group(8)), int(m2.group(7)), int(m2.group(6)), int(m2.group(9)), int(m2.group(10)))
+            return start, end
+        except: pass
+    # Format 1 dzień: 24.08.2026, 08:00 - 11:00
+    m1 = re.search(r'(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})[^\d]*(\d{2}):(\d{2})', s)
+    if m1:
+        try:
+            start = datetime(int(m1.group(3)), int(m1.group(2)), int(m1.group(1)), int(m1.group(4)), int(m1.group(5)))
+            end = datetime(int(m1.group(3)), int(m1.group(2)), int(m1.group(1)), int(m1.group(6)), int(m1.group(7)))
+            if end <= start: end += timedelta(days=1)
+            return start, end
+        except: pass
+    return None, None
+
+# --- GENERATOR PDF (TRYB OFFLINE) ---
+def generate_offline_pdf(df_slots, title_text):
+    def clean_pl(text):
+        pl_chars = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
+                    'Ą':'A','Ć':'C','Ę':'E','Ł':'L','Ń':'N','Ó':'O','Ś':'S','Ź':'Z','Ż':'Z'}
+        for k, v in pl_chars.items():
+            text = str(text).replace(k, v)
+        return text
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", 'B', 16)
+    pdf.cell(0, 10, clean_pl(title_text), ln=True, align="C")
+    pdf.ln(5)
+    
+    for index, row in df_slots.iterrows():
+        event = row.get('Event', '')
+        auto = row.get('Auto', '')
+        ref_num = row.get('Nr_Referencyjny', '')
+        data_slotu = row.get('Data_Slotu', '')
+        notatki = row.get('Notatki', '')
+        
+        pdf.set_font("Helvetica", 'B', 12)
+        pdf.cell(0, 8, f"Event: {clean_pl(event)}", ln=True)
+        pdf.set_font("Helvetica", '', 11)
+        pdf.cell(0, 6, f"Termin: {clean_pl(data_slotu)}", ln=True)
+        pdf.cell(0, 6, f"Brama / Nr Ref: {clean_pl(ref_num)}", ln=True)
+        if str(auto).strip():
+            pdf.cell(0, 6, f"Auto: {clean_pl(auto)}", ln=True)
+        if str(notatki).strip():
+            pdf.multi_cell(0, 6, f"Notatka: {clean_pl(notatki)}")
+        
+        pdf.ln(5)
+        pdf.cell(0, 0, "", "T") # Linia oddzielająca
+        pdf.ln(5)
+        
+    pdf_out = pdf.output(dest='S')
+    if isinstance(pdf_out, bytearray): return bytes(pdf_out)
+    elif isinstance(pdf_out, str): return pdf_out.encode('latin-1')
+    return bytes(pdf_out)
 
 # --- POŁĄCZENIE Z BAZĄ GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -150,8 +210,8 @@ if not saved_login:
 # ==========================================
 else:
     col1, col2 = st.columns([3, 1])
-    col1.success(f"Zalogowano jako: {saved_login}")
-    if col2.button("Wyloguj"):
+    col1.success(f"Aktywna sesja: {saved_login}")
+    if col2.button("Zamknij widok / Wyloguj"):
         cookie_controller.remove("sqm_login")
         cookie_controller.remove("sqm_role")
         st.rerun()
@@ -174,14 +234,22 @@ else:
             
             if not pokaz_archiwalne:
                 df_event = df_event[df_event['Czy_Aktywny'] == True]
-                if df_event.empty:
-                    st.success("Wszystkie sloty dla tego eventu zostały już zrealizowane!")
-
+                
             if not df_event.empty:
-                # Zamienia wszystkie "None" i "NaN" na pusty tekst
                 df_event = df_event.fillna("")
                 
-                # Renderowanie nowoczesnych Kafelków zamiast surowej tabeli
+                # --- PRZYCISK OFFLINE PDF ---
+                pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
+                st.download_button(
+                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                    data=pdf_bytes,
+                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.write("") # Odstęp
+                
+                # Renderowanie Kafelków
                 for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
                     kierowca = row.get('Nazwisko', 'Nieprzypisany')
                     auto = row.get('Auto', '')
@@ -192,38 +260,76 @@ else:
                     
                     with st.container():
                         st.markdown(f"### 🗓️ {data_slotu}")
-                        
-                        # Dzielimy informacje na dwie ładne kolumny
                         colA, colB = st.columns(2)
                         with colA:
                             st.markdown(f"**👨‍🔧 Kto jedzie:** `{kierowca}`")
                             st.markdown(f"**🔑 Brama/Ref:** `{ref_num if ref_num else 'Brak'}`")
                         with colB:
                             st.markdown(f"**🚐 Auto:** `{auto if auto else 'Nie podano'}`")
-                            # Jeśli jest link, wyświetlamy duży przycisk
                             if str(link_pdf).strip():
                                 st.link_button("📄 POBIERZ PDF / SLOT", str(link_pdf))
                                 
                         if str(notatki).strip():
                             st.info(f"**Ważne info:** {notatki}")
-                            
                         st.divider()
+            else:
+                st.success("Wszystkie sloty dla tego eventu zostały już zrealizowane!")
 
     # ------------------------------------------
-    # WIDOK ADMINA (CMS)
+    # WIDOK ADMINA (CMS + GANTT)
     # ------------------------------------------
     elif saved_role == "Admin":
-        tryb_admina = st.radio("Wybierz akcję:", ["➕ Dodaj nowy slot", "✏️ Edytuj / Usuń istniejący"], horizontal=True)
+        tryb_admina = st.radio("Wybierz moduł:", ["📊 Wykres Gantta", "➕ Dodaj nowy slot", "✏️ Edytuj / Usuń istniejący"], horizontal=True)
+        st.write("---")
         
-        if tryb_admina == "➕ Dodaj nowy slot":
+        # --- MODUŁ WIZUALNY: WYKRES GANTTA ---
+        if tryb_admina == "📊 Wykres Gantta":
+            st.write("### 📈 Harmonogram operacyjny (Gantt)")
+            if df_sloty.empty:
+                st.info("Baza jest pusta.")
+            else:
+                lista_wydarzen = df_sloty['Event'].dropna().unique().tolist()
+                event_gantt = st.selectbox("Wybierz wydarzenie do analizy czasowej:", lista_wydarzen)
+                
+                df_g = df_sloty[df_sloty['Event'] == event_gantt].copy()
+                gantt_data = []
+                
+                for i, row in df_g.iterrows():
+                    start, end = parse_dates_for_gantt(row.get('Data_Slotu', ''))
+                    if start and end:
+                        nazw = row.get('Nazwisko', 'Nieznany')
+                        auto = row.get('Auto', '')
+                        label = f"{nazw} ({auto})" if str(auto).strip() else nazw
+                        gantt_data.append(dict(Task=label, Start=start, Finish=end, Ref=row.get('Nr_Referencyjny','')))
+                
+                if gantt_data:
+                    df_plot = pd.DataFrame(gantt_data)
+                    fig = px.timeline(df_plot, x_start="Start", x_end="Finish", y="Task", color="Task", hover_data=["Ref"])
+                    fig.update_yaxes(autorange="reversed")
+                    fig.update_layout(
+                        showlegend=False, 
+                        height=200 + (len(gantt_data)*35),
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    # Ustawiamy biały/jasny kolor czcionek na osiach wykresu, żeby pasowało do ciemnego tła
+                    fig.update_xaxes(tickfont=dict(color='gray'))
+                    fig.update_yaxes(tickfont=dict(color='black'))
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Nie znaleziono odpowiednio sformatowanych dat dla tego eventu (wymagany format to np. '24.08.2026, 08:00 - 11:00').")
+
+        # --- DODAWANIE ---
+        elif tryb_admina == "➕ Dodaj nowy slot":
             with st.form("add_form", clear_on_submit=True):
                 new_event = st.text_input("Nazwa Eventu")
                 lista_pracownikow = df_konta[df_konta['Rola'].isin(['Technik', 'Kierowca'])]['Login'].tolist()
                 new_nazwisko = st.selectbox("Przypisz pracownika", ["-- Wpisz ręcznie poniżej --"] + lista_pracownikow)
                 new_nazwisko_reczne = st.text_input("...lub wpisz nazwisko ręcznie")
                 
-                new_auto = st.text_input("Auto / Rejestracja (np. Sprinter PO 12345)")
-                new_data = st.text_input("Data i godzina (np. 15.09.2026, 14:00)")
+                new_auto = st.text_input("Auto / Rejestracja")
+                new_data = st.text_input("Data i godzina (np. 15.09.2026, 14:00 - 17:00)")
                 new_ref = st.text_input("Numer Referencyjny / Brama")
                 new_notatki = st.text_area("Notatki operacyjne")
                 new_file = st.file_uploader("Załącz plik (Opcjonalnie)", type=['pdf', 'jpg', 'png'])
@@ -253,6 +359,7 @@ else:
                                 st.rerun()
                             except Exception as e: st.error(f"Błąd bazy: {e}")
 
+        # --- EDYCJA ---
         elif tryb_admina == "✏️ Edytuj / Usuń istniejący":
             if df_sloty.empty:
                 st.warning("Baza slotów jest pusta.")
@@ -271,7 +378,7 @@ else:
                         ed_event = st.text_input("Event", value=str(row.get('Event', '')))
                         ed_nazw = st.text_input("Nazwisko", value=str(row.get('Nazwisko', '')))
                         ed_auto = st.text_input("Auto / Rejestracja", value=str(row.get('Auto', '')))
-                        ed_data = st.text_input("Data i godzina", value=str(row.get('Data_Slotu', '')))
+                        ed_data = st.text_input("Data i godzina (np. 15.09.2026, 14:00 - 17:00)", value=str(row.get('Data_Slotu', '')))
                         ed_ref = st.text_input("Nr Ref / Brama", value=str(row.get('Nr_Referencyjny', '')))
                         ed_notatki = st.text_area("Notatki", value=str(row.get('Notatki', '')))
                         
@@ -328,9 +435,18 @@ else:
             if not pokaz_archiwalne_moje:
                 moje_sloty = moje_sloty[moje_sloty['Czy_Aktywny'] == True]
                 
-            if moje_sloty.empty:
-                 st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
-            else:
+            if not moje_sloty.empty:
+                # --- PRZYCISK OFFLINE PDF (DLA TECHNIKA) ---
+                pdf_bytes = generate_offline_pdf(moje_sloty, f"Harmonogram - {saved_login}")
+                st.download_button(
+                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                    data=pdf_bytes,
+                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.write("") # Odstęp
+                
                 for index, row in moje_sloty.sort_values(by='Data_Slotu').iterrows():
                     event_name = row.get('Event', 'Nieznany Event')
                     auto = row.get('Auto', '')
@@ -352,3 +468,5 @@ else:
                         if str(link_pdf).strip():
                             st.link_button(f"📄 Pobierz dokumentację", str(link_pdf))
                         st.markdown("---")
+            else:
+                 st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
