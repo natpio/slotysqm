@@ -12,7 +12,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from streamlit_cookies_controller import CookieController
 
-# --- KONFIGURACJA STRONY ---
+# --- KONFIGURACJA STRONY (Zmienione na WIDE, żeby naprawić ucięte kolumny) ---
 st.set_page_config(page_title="SQM Hub", page_icon="📱", layout="wide", initial_sidebar_state="collapsed")
 
 # --- INICJALIZACJA CIASTECZEK (Na 30 dni) ---
@@ -25,7 +25,21 @@ def set_bg_from_local(image_file):
         with open(image_file, "rb") as file:
             encoded_string = base64.b64encode(file.read()).decode()
         st.markdown(
-            f"<style>.stApp {{ background-image: url(data:image/png;base64,{encoded_string}); background-size: cover; background-position: center; background-attachment: fixed; }}</style>",
+            f"""
+            <style>
+            .stApp {{ background-image: url(data:image/png;base64,{encoded_string}); background-size: cover; background-position: center; background-attachment: fixed; }}
+            /* POPRAWKA KART (KAFELKÓW) - Zapewnia białe, lekko przezroczyste tło pod tekstem, żeby się nie zlewał z obrazkiem */
+            div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column"] > div[data-testid="stVerticalBlock"] {{
+                background-color: rgba(255, 255, 255, 0.85);
+                padding: 15px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                margin-bottom: 15px;
+            }}
+            /* Poprawka przycisku na ciemnym tle */
+            .stButton>button {{ width: 100%; }}
+            </style>
+            """,
             unsafe_allow_html=True
         )
     except FileNotFoundError:
@@ -143,8 +157,8 @@ except Exception as e:
     st.stop()
 
 # --- HEADER APLIKACJI ---
-st.markdown("<div class='title-sqm'>SQM SOLUTIONS</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Event Logistics Hub</div>", unsafe_allow_html=True)
+st.markdown("<div class='title-sqm' style='text-align: center;'>SQM SOLUTIONS</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle' style='text-align: center; margin-bottom: 2rem;'>Event Logistics Hub</div>", unsafe_allow_html=True)
 
 saved_login = cookie_controller.get("sqm_login")
 saved_role = cookie_controller.get("sqm_role")
@@ -153,140 +167,146 @@ saved_role = cookie_controller.get("sqm_role")
 # EKRAN 1: WYBÓR WIDOKU I LOGOWANIE
 # ==========================================
 if not saved_login:
-    st.write("### Gdzie chcesz wejść?")
-    rola_wybor = st.radio("Wybierz profil:", ["👨‍🔧 Moje prywatne sloty", "📋 Tablica Eventu (Dla Ekipy)", "⚙️ Panel Koordynatora"], horizontal=False)
-    st.write("---")
-    
-    if rola_wybor == "👨‍🔧 Moje prywatne sloty":
-        st.write("Podaj swoje dane, aby zobaczyć tylko swoje wyjazdy.")
-        login_input = st.text_input("Login / Nazwisko")
-        pin_input = st.text_input("Hasło (PIN)", type="password")
-            
-        if st.button("ZALOGUJ SIĘ"):
-            if not login_input or not pin_input:
-                st.error("Wypełnij wszystkie pola.")
-            else:
-                df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
-                df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
-                user_row = df_konta[(df_konta['Login_clean'] == login_input.strip().lower()) & (df_konta['PIN_clean'] == pin_input.strip())]
-                
-                if not user_row.empty:
-                    znaleziona_rola = str(user_row.iloc[0]['Rola']).strip()
-                    rzeczywisty_login = str(user_row.iloc[0]['Login']).strip()
-                    cookie_controller.set("sqm_login", rzeczywisty_login, max_age=COOKIE_EXPIRY)
-                    cookie_controller.set("sqm_role", znaleziona_rola, max_age=COOKIE_EXPIRY)
-                    st.rerun()
-                else:
-                    st.error("Błędny login lub hasło.")
-
-    elif rola_wybor == "📋 Tablica Eventu (Dla Ekipy)":
-        lista_wydarzen = df_sloty['Event'].dropna().unique().tolist()
-        wybrany_event = st.selectbox("Wybierz wydarzenie, na które jedziesz:", ["-- Wybierz --"] + lista_wydarzen)
-        pin_grupy = st.text_input("PIN Ekipy (Podaj hasło):", type="password")
+    col_main, _ = st.columns([1, 0.1]) # Wymusza lekkie wyśrodkowanie bez psucia responsywności
+    with col_main:
+        st.write("### Gdzie chcesz wejść?")
+        rola_wybor = st.radio("Wybierz profil:", ["👨‍🔧 Moje prywatne sloty", "📋 Tablica Eventu (Dla Ekipy)", "⚙️ Panel Koordynatora"], horizontal=True)
+        st.write("---")
         
-        if st.button("OTWÓRZ TABLICĘ ZBIORCZĄ"):
-            if wybrany_event != "-- Wybierz --":
-                df_konta['Rola_clean'] = df_konta['Rola'].astype(str).str.strip().str.lower()
-                df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
-                df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
+        if rola_wybor == "👨‍🔧 Moje prywatne sloty":
+            st.write("Podaj swoje dane, aby zobaczyć tylko swoje wyjazdy.")
+            login_input = st.text_input("Login / Nazwisko")
+            pin_input = st.text_input("Hasło (PIN)", type="password")
                 
-                # 1. Szukamy pinu dedykowanego pod ten konkretny event
-                pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == wybrany_event.strip().lower())]
-                
-                # 2. Jeśli brak pinu dedykowanego, szukamy pinu "Ogólny"
-                if pin_eventu.empty:
-                    pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == 'ogólny')]
-                
-                if not pin_eventu.empty:
-                    poprawny_pin = pin_eventu.iloc[0]['PIN_clean']
-                    if pin_grupy.strip() == poprawny_pin:
-                        cookie_controller.set("sqm_login", wybrany_event, max_age=COOKIE_EXPIRY)
-                        cookie_controller.set("sqm_role", "Team_Board", max_age=COOKIE_EXPIRY)
+            if st.button("ZALOGUJ SIĘ"):
+                if not login_input or not pin_input:
+                    st.error("Wypełnij wszystkie pola.")
+                else:
+                    df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
+                    df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
+                    user_row = df_konta[(df_konta['Login_clean'] == login_input.strip().lower()) & (df_konta['PIN_clean'] == pin_input.strip())]
+                    
+                    if not user_row.empty:
+                        znaleziona_rola = str(user_row.iloc[0]['Rola']).strip()
+                        rzeczywisty_login = str(user_row.iloc[0]['Login']).strip()
+                        cookie_controller.set("sqm_login", rzeczywisty_login, max_age=COOKIE_EXPIRY)
+                        cookie_controller.set("sqm_role", znaleziona_rola, max_age=COOKIE_EXPIRY)
                         st.rerun()
                     else:
-                        st.error("Błędny PIN ekipy dla tego wydarzenia.")
-                else:
-                    st.error("Błąd: W zakładce 'Uzytkownicy' brakuje konta z rolą 'Ekipa' i loginem 'Ogólny'.")
-            else:
-                st.error("Najpierw wybierz wydarzenie z listy.")
+                        st.error("Błędny login lub hasło.")
 
-    elif rola_wybor == "⚙️ Panel Koordynatora":
-        admin_pass = st.text_input("Hasło Główne:", type="password")
-        if st.button("WEJDŹ DO CMS"):
-            if admin_pass == st.secrets.get("admin_password", "brak_hasla"):
-                cookie_controller.set("sqm_login", "Administrator", max_age=COOKIE_EXPIRY)
-                cookie_controller.set("sqm_role", "Admin", max_age=COOKIE_EXPIRY)
-                st.rerun()
-            else:
-                st.error("Błędne hasło główne.")
+        elif rola_wybor == "📋 Tablica Eventu (Dla Ekipy)":
+            lista_wydarzen = df_sloty['Event'].dropna().unique().tolist()
+            wybrany_event = st.selectbox("Wybierz wydarzenie, na które jedziesz:", ["-- Wybierz --"] + lista_wydarzen)
+            pin_grupy = st.text_input("PIN Ekipy (Podaj hasło):", type="password")
+            
+            if st.button("OTWÓRZ TABLICĘ ZBIORCZĄ"):
+                if wybrany_event != "-- Wybierz --":
+                    df_konta['Rola_clean'] = df_konta['Rola'].astype(str).str.strip().str.lower()
+                    df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
+                    df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
+                    
+                    pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == wybrany_event.strip().lower())]
+                    
+                    if pin_eventu.empty:
+                        pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == 'ogólny')]
+                    
+                    if not pin_eventu.empty:
+                        poprawny_pin = pin_eventu.iloc[0]['PIN_clean']
+                        if pin_grupy.strip() == poprawny_pin:
+                            cookie_controller.set("sqm_login", wybrany_event, max_age=COOKIE_EXPIRY)
+                            cookie_controller.set("sqm_role", "Team_Board", max_age=COOKIE_EXPIRY)
+                            st.rerun()
+                        else:
+                            st.error("Błędny PIN ekipy dla tego wydarzenia.")
+                    else:
+                        st.error("Błąd: W zakładce 'Uzytkownicy' brakuje konta z rolą 'Ekipa' i loginem 'Ogólny'.")
+                else:
+                    st.error("Najpierw wybierz wydarzenie z listy.")
+
+        elif rola_wybor == "⚙️ Panel Koordynatora":
+            admin_pass = st.text_input("Hasło Główne:", type="password")
+            if st.button("WEJDŹ DO CMS"):
+                if admin_pass == st.secrets.get("admin_password", "brak_hasla"):
+                    cookie_controller.set("sqm_login", "Administrator", max_age=COOKIE_EXPIRY)
+                    cookie_controller.set("sqm_role", "Admin", max_age=COOKIE_EXPIRY)
+                    st.rerun()
+                else:
+                    st.error("Błędne hasło główne.")
 
 # ==========================================
 # EKRAN 2: ZALOGOWANY UŻYTKOWNIK
 # ==========================================
 else:
-    col1, col2 = st.columns([3, 1])
-    col1.success(f"Aktywna sesja: {saved_login}")
-    if col2.button("Zamknij widok / Wyloguj"):
-        cookie_controller.remove("sqm_login")
-        cookie_controller.remove("sqm_role")
-        st.rerun()
+    # Poprawiony układ górnego paska
+    top_col1, top_col2, top_col3 = st.columns([1, 3, 1])
+    with top_col2:
+        st.success(f"Aktywna sesja: {saved_login}")
+    with top_col3:
+        if st.button("Wyloguj"):
+            cookie_controller.remove("sqm_login")
+            cookie_controller.remove("sqm_role")
+            st.rerun()
         
     st.write("---")
 
     # ------------------------------------------
-    # WIDOK: TABLICA ZBIORCZA EVENTU (PRO KARTY)
+    # WIDOK: TABLICA ZBIORCZA EVENTU
     # ------------------------------------------
     if saved_role == "Team_Board":
-        st.write(f"### 📋 Harmonogram: {saved_login}")
-        
-        df_event = df_sloty[df_sloty['Event'] == saved_login].copy()
-        
-        if df_event.empty:
-            st.info("Brak przypisanych aut i slotów do tego wydarzenia.")
-        else:
-            df_event['Czy_Aktywny'] = df_event['Data_Slotu'].apply(czy_slot_aktywny)
-            pokaz_archiwalne = st.checkbox("Pokaż archiwalne (wczorajsze) sloty", value=False)
+        # Wąski kontener centralny dla kafelków, by świetnie wyglądały i na PC, i na telefonie
+        col_space1, col_content, col_space2 = st.columns([1, 4, 1])
+        with col_content:
+            st.write(f"### 📋 Harmonogram: {saved_login}")
             
-            if not pokaz_archiwalne:
-                df_event = df_event[df_event['Czy_Aktywny'] == True]
-                
-            if not df_event.empty:
-                df_event = df_event.fillna("")
-                
-                pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
-                st.download_button(
-                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
-                    data=pdf_bytes,
-                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-                st.write("") 
-                
-                for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
-                    kierowca = row.get('Nazwisko', 'Nieprzypisany')
-                    auto = row.get('Auto', '')
-                    ref_num = row.get('Nr_Referencyjny', '')
-                    data_slotu = row.get('Data_Slotu', 'Do ustalenia')
-                    notatki = row.get('Notatki', '')
-                    link_pdf = row.get('Link_PDF', '')
-                    
-                    with st.container():
-                        st.markdown(f"### 🗓️ {data_slotu}")
-                        colA, colB = st.columns(2)
-                        with colA:
-                            st.markdown(f"**👨‍🔧 Kto jedzie:** `{kierowca}`")
-                            st.markdown(f"**🔑 Brama/Ref:** `{ref_num if ref_num else 'Brak'}`")
-                        with colB:
-                            st.markdown(f"**🚐 Auto:** `{auto if auto else 'Nie podano'}`")
-                            if str(link_pdf).strip():
-                                st.link_button("📄 POBIERZ PDF / SLOT", str(link_pdf))
-                                
-                        if str(notatki).strip():
-                            st.info(f"**Ważne info:** {notatki}")
-                        st.divider()
+            df_event = df_sloty[df_sloty['Event'] == saved_login].copy()
+            
+            if df_event.empty:
+                st.info("Brak przypisanych aut i slotów do tego wydarzenia.")
             else:
-                st.success("Wszystkie sloty dla tego eventu zostały już zrealizowane!")
+                df_event['Czy_Aktywny'] = df_event['Data_Slotu'].apply(czy_slot_aktywny)
+                pokaz_archiwalne = st.checkbox("Pokaż archiwalne (wczorajsze) sloty", value=False)
+                
+                if not pokaz_archiwalne:
+                    df_event = df_event[df_event['Czy_Aktywny'] == True]
+                    
+                if not df_event.empty:
+                    df_event = df_event.fillna("")
+                    
+                    pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
+                    st.download_button(
+                        label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                        data=pdf_bytes,
+                        file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                    st.write("") 
+                    
+                    for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
+                        kierowca = row.get('Nazwisko', 'Nieprzypisany')
+                        auto = row.get('Auto', '')
+                        ref_num = row.get('Nr_Referencyjny', '')
+                        data_slotu = row.get('Data_Slotu', 'Do ustalenia')
+                        notatki = row.get('Notatki', '')
+                        link_pdf = row.get('Link_PDF', '')
+                        
+                        # --- TEN BLOK TO "KARTA/KAFELEK" ---
+                        with st.container():
+                            st.markdown(f"#### 🗓️ {data_slotu}")
+                            colA, colB = st.columns(2)
+                            with colA:
+                                st.markdown(f"**👨‍🔧 Kto jedzie:** `{kierowca}`")
+                                st.markdown(f"**🔑 Brama/Ref:** `{ref_num if ref_num else 'Brak'}`")
+                            with colB:
+                                st.markdown(f"**🚐 Auto:** `{auto if auto else 'Brak info'}`")
+                                if str(link_pdf).strip():
+                                    st.link_button("📄 POBIERZ PDF", str(link_pdf))
+                                    
+                            if str(notatki).strip():
+                                st.info(f"**Info:** {notatki}")
+                else:
+                    st.success("Wszystkie sloty dla tego eventu zostały już zrealizowane!")
 
     # ------------------------------------------
     # WIDOK ADMINA (CMS + GANTT)
@@ -329,7 +349,7 @@ else:
                     
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.warning("Nie znaleziono odpowiednio sformatowanych dat dla tego eventu (wymagany format to np. '24.08.2026, 08:00 - 11:00').")
+                    st.warning("Nie znaleziono odpowiednio sformatowanych dat dla tego eventu.")
 
         elif tryb_admina == "➕ Dodaj nowy slot":
             with st.form("add_form", clear_on_submit=True):
@@ -431,50 +451,51 @@ else:
     # WIDOK TECHNIKA / KIEROWCY (TYLKO OSOBISTE SLOTY)
     # ------------------------------------------
     elif saved_role in ["Technik", "Kierowca"]:
-        df_sloty = df_sloty.fillna("")
-        df_sloty['Nazwisko_clean'] = df_sloty['Nazwisko'].astype(str).str.strip().str.lower()
-        moje_sloty = df_sloty[df_sloty['Nazwisko_clean'] == str(saved_login).lower().strip()].copy()
-        
-        if moje_sloty.empty:
-            st.info("Nie masz aktualnie przypisanych żadnych slotów.")
-        else:
-            moje_sloty['Czy_Aktywny'] = moje_sloty['Data_Slotu'].apply(czy_slot_aktywny)
-            pokaz_archiwalne_moje = st.checkbox("Pokaż moje archiwalne (zakończone) wyjazdy", value=False)
+        col_space1, col_content, col_space2 = st.columns([1, 4, 1])
+        with col_content:
+            df_sloty = df_sloty.fillna("")
+            df_sloty['Nazwisko_clean'] = df_sloty['Nazwisko'].astype(str).str.strip().str.lower()
+            moje_sloty = df_sloty[df_sloty['Nazwisko_clean'] == str(saved_login).lower().strip()].copy()
             
-            if not pokaz_archiwalne_moje:
-                moje_sloty = moje_sloty[moje_sloty['Czy_Aktywny'] == True]
-                
-            if not moje_sloty.empty:
-                pdf_bytes = generate_offline_pdf(moje_sloty, f"Harmonogram - {saved_login}")
-                st.download_button(
-                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
-                    data=pdf_bytes,
-                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-                st.write("") 
-                
-                for index, row in moje_sloty.sort_values(by='Data_Slotu').iterrows():
-                    event_name = row.get('Event', 'Nieznany Event')
-                    auto = row.get('Auto', '')
-                    ref_num = row.get('Nr_Referencyjny', '')
-                    data_slotu = row.get('Data_Slotu', 'Do ustalenia')
-                    notatki = row.get('Notatki', '')
-                    link_pdf = row.get('Link_PDF', '')
-                    
-                    with st.container():
-                        st.markdown(f"### 📍 {event_name}")
-                        st.markdown(f"**🗓 Termin:** `{data_slotu}`")
-                        st.markdown(f"**🔑 Brama / Nr Ref:** `{ref_num if ref_num else 'Brak'}`")
-                        if auto:
-                            st.markdown(f"**🚐 Auto:** `{auto}`")
-                        
-                        if notatki:
-                            st.info(f"**Notatka:** {notatki}")
-                        
-                        if str(link_pdf).strip():
-                            st.link_button(f"📄 Pobierz dokumentację", str(link_pdf))
-                        st.markdown("---")
+            if moje_sloty.empty:
+                st.info("Nie masz aktualnie przypisanych żadnych slotów.")
             else:
-                 st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
+                moje_sloty['Czy_Aktywny'] = moje_sloty['Data_Slotu'].apply(czy_slot_aktywny)
+                pokaz_archiwalne_moje = st.checkbox("Pokaż moje archiwalne (zakończone) wyjazdy", value=False)
+                
+                if not pokaz_archiwalne_moje:
+                    moje_sloty = moje_sloty[moje_sloty['Czy_Aktywny'] == True]
+                    
+                if not moje_sloty.empty:
+                    pdf_bytes = generate_offline_pdf(moje_sloty, f"Harmonogram - {saved_login}")
+                    st.download_button(
+                        label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                        data=pdf_bytes,
+                        file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                    st.write("") 
+                    
+                    for index, row in moje_sloty.sort_values(by='Data_Slotu').iterrows():
+                        event_name = row.get('Event', 'Nieznany Event')
+                        auto = row.get('Auto', '')
+                        ref_num = row.get('Nr_Referencyjny', '')
+                        data_slotu = row.get('Data_Slotu', 'Do ustalenia')
+                        notatki = row.get('Notatki', '')
+                        link_pdf = row.get('Link_PDF', '')
+                        
+                        with st.container():
+                            st.markdown(f"#### 📍 {event_name}")
+                            st.markdown(f"**🗓 Termin:** `{data_slotu}`")
+                            st.markdown(f"**🔑 Brama / Nr Ref:** `{ref_num if ref_num else 'Brak'}`")
+                            if auto:
+                                st.markdown(f"**🚐 Auto:** `{auto}`")
+                            
+                            if notatki:
+                                st.info(f"**Notatka:** {notatki}")
+                            
+                            if str(link_pdf).strip():
+                                st.link_button(f"📄 Pobierz dokumentację", str(link_pdf))
+                else:
+                     st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
