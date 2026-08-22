@@ -190,7 +190,7 @@ if not saved_login:
                 df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
                 df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
                 
-                # 1. Szukamy pinu dedykowanego pod ten konkretny event
+                # 1. Szukamy pinu dedykowanego pod ten konkretny event (kod PIN dla danego eventu pobierany z Google Sheets)
                 pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == wybrany_event.strip().lower())]
                 
                 # 2. Jeśli brak pinu dedykowanego, szukamy pinu "Ogólny"
@@ -461,7 +461,7 @@ else:
                             st.info(f"**Notatka:** {notatki}")
                         
                         if str(link_pdf).strip():
-                            st.link_button(f"📄 Pobierz dokumentację", str(link_pdf))
+                            st.link_button(f"📄 Pobierz wjazdówkę", str(link_pdf))
                         st.markdown("---")
             else:
                  st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
