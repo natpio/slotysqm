@@ -139,26 +139,28 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # WIDOK: TABLICA ZBIORCZA EVENTU (NOWOŚĆ)
+    # WIDOK: TABLICA ZBIORCZA EVENTU
     # ------------------------------------------
     if saved_role == "Team_Board":
         st.write(f"### 📋 Harmonogram wyjazdowy: {saved_login}")
         
-        # Filtrujemy bazę tylko dla tego eventu
         df_event = df_sloty[df_sloty['Event'] == saved_login].copy()
         
         if df_event.empty:
             st.info("Brak przypisanych aut i slotów do tego wydarzenia.")
         else:
+            # Bezpieczne sprawdzanie kolumn (chroni przed błędem KeyError)
+            oczekiwane_kolumny = ['Data_Slotu', 'Auto', 'Nazwisko', 'Nr_Referencyjny', 'Notatki', 'Link_PDF']
+            for kol in oczekiwane_kolumny:
+                if kol not in df_event.columns:
+                    df_event[kol] = ""  
+            
             # Uporządkowanie kolumn do wyświetlenia w tabeli
-            df_event['Auto'] = df_event.get('Auto', 'Brak info')
-            df_tabela = df_event[['Data_Slotu', 'Auto', 'Nazwisko', 'Nr_Referencyjny', 'Notatki', 'Link_PDF']].copy()
+            df_tabela = df_event[oczekiwane_kolumny].copy()
             df_tabela.columns = ['🗓️ Termin', '🚐 Auto', '👨‍🔧 Kierowca / Technik', '🔑 Brama / Nr Ref', '📝 Notatki / Info', 'PDF']
             
-            # Sortowanie po dacie (jeśli format pozwala)
             df_tabela = df_tabela.sort_values(by='🗓️ Termin')
             
-            # Wyświetlanie profesjonalnej, interaktywnej tabeli
             st.dataframe(
                 df_tabela,
                 column_config={
@@ -184,9 +186,7 @@ else:
                 new_nazwisko = st.selectbox("Przypisz pracownika", ["-- Wpisz ręcznie poniżej --"] + lista_pracownikow)
                 new_nazwisko_reczne = st.text_input("...lub wpisz nazwisko ręcznie")
                 
-                # Nowe pole: Auto
                 new_auto = st.text_input("Auto / Rejestracja (np. Sprinter PO 12345)")
-                
                 new_data = st.text_input("Data i godzina (np. 15.09.2026, 14:00)")
                 new_ref = st.text_input("Numer Referencyjny / Brama")
                 new_notatki = st.text_area("Notatki operacyjne")
