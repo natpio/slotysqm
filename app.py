@@ -54,9 +54,19 @@ def upload_to_drive(uploaded_file, event_name, tech_name):
     file_drive = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     file_id = file_drive.get('id')
     drive_service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
-    return f"https://drive.google.com/file/d/{file_id}/view"
+    # Zmieniony URL na bezpośrednie pobieranie zamiast podglądu
+    return f"https://drive.google.com/uc?export=download&id={file_id}"
 
-# --- FUNKCJE POMOCNICZE (DATY I GANTT) ---
+# --- FUNKCJE POMOCNICZE (DATY, GANTT, LINKI) ---
+def format_drive_link(url):
+    """Przerabia standardowy link Google Drive /view na link wymuszający bezpośrednie pobranie"""
+    url = str(url).strip()
+    if not url: return ""
+    match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+    if match:
+        return f"https://drive.google.com/uc?export=download&id={match.group(1)}"
+    return url
+
 def czy_slot_aktywny(data_str):
     if pd.isna(data_str) or str(data_str).strip() == "": return True 
     match_pl = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', str(data_str))
@@ -529,8 +539,9 @@ else:
                             if notatki:
                                 st.info(f"**Notatka:** {notatki}")
                             
+                            # Użycie funkcji format_drive_link do wymuszenia pobierania
                             if str(link_pdf).strip():
-                                st.link_button(f"📄 Pobierz wjazdówkę", str(link_pdf))
+                                st.link_button(f"📄 Pobierz wjazdówkę", format_drive_link(link_pdf))
                             st.markdown("---")
                 else:
                     st.info("Brak wyników wyszukiwania.")
