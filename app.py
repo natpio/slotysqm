@@ -253,23 +253,12 @@ else:
             if not df_event.empty:
                 df_event = df_event.fillna("")
                 
-                pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
-                st.download_button(
-                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
-                    data=pdf_bytes,
-                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-                st.write("") 
-                
                 for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
                     kierowca = row.get('Nazwisko', 'Nieprzypisany')
                     auto = row.get('Auto', '')
                     ref_num = row.get('Nr_Referencyjny', '')
                     data_slotu = row.get('Data_Slotu', 'Do ustalenia')
                     notatki = row.get('Notatki', '')
-                    link_pdf = row.get('Link_PDF', '')
                     
                     with st.container():
                         st.markdown(f"### 🗓️ {data_slotu}")
@@ -279,8 +268,6 @@ else:
                             st.markdown(f"**🔑 Brama/Ref:** `{ref_num if ref_num else 'Brak'}`")
                         with colB:
                             st.markdown(f"**🚐 Auto:** `{auto if auto else 'Nie podano'}`")
-                            if str(link_pdf).strip():
-                                st.link_button("📄 POBIERZ PDF / SLOT", str(link_pdf))
                                 
                         if str(notatki).strip():
                             st.info(f"**Ważne info:** {notatki}")
