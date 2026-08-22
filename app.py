@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import io
 import base64
+import re
+from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -52,6 +54,30 @@ def upload_to_drive(uploaded_file, event_name, tech_name):
     drive_service.permissions().create(fileId=file_id, body={'type': 'anyone', 'role': 'reader'}).execute()
     return f"https://drive.google.com/file/d/{file_id}/view"
 
+# --- SYSTEM SPRAWDZANIA DAT (UKRYWANIE ZAKOŃCZONYCH) ---
+def czy_slot_aktywny(data_str):
+    if pd.isna(data_str) or str(data_str).strip() == "":
+        return True # Jeśli nie ma daty, zostawiamy slot jako aktywny
+    
+    # Szukamy polskiego formatu DD.MM.YYYY w ciągu znaków
+    match_pl = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', str(data_str))
+    if match_pl:
+        try:
+            slot_date = datetime(int(match_pl.group(3)), int(match_pl.group(2)), int(match_pl.group(1))).date()
+            return slot_date >= datetime.today().date()
+        except: pass
+        
+    # Szukamy formatu YYYY-MM-DD
+    match_iso = re.search(r'(\d{4})-(\d{2})-(\d{2})', str(data_str))
+    if match_iso:
+        try:
+            slot_date = datetime(int(match_iso.group(1)), int(match_iso.group(2)), int(match_iso.group(3))).date()
+            return slot_date >= datetime.today().date()
+        except: pass
+
+    # Jeśli nie udało się odczytać formatu daty, domyślnie pokazujemy slot
+    return True
+
 # --- POŁĄCZENIE Z BAZĄ GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -77,7 +103,6 @@ if not saved_login:
     rola_wybor = st.radio("Wybierz profil:", ["👨‍🔧 Moje prywatne sloty", "📋 Tablica Eventu (Dla Ekipy)", "⚙️ Panel Koordynatora"], horizontal=False)
     st.write("---")
     
-    # 1. LOGOWANIE OSOBISTE
     if rola_wybor == "👨‍🔧 Moje prywatne sloty":
         st.write("Podaj swoje dane, aby zobaczyć tylko swoje wyjazdy.")
         login_input = st.text_input("Login / Nazwisko")
@@ -100,7 +125,6 @@ if not saved_login:
                 else:
                     st.error("Błędny login lub hasło.")
 
-    # 2. LOGOWANIE GRUPOWE (TABLICA EVENTU)
     elif rola_wybor == "📋 Tablica Eventu (Dla Ekipy)":
         lista_wydarzen = df_sloty['Event'].dropna().unique().tolist()
         wybrany_event = st.selectbox("Wybierz wydarzenie, na które jedziesz:", ["-- Wybierz --"] + lista_wydarzen)
@@ -114,7 +138,6 @@ if not saved_login:
             else:
                 st.error("Błędny PIN ekipy lub nie wybrano wydarzenia.")
 
-    # 3. LOGOWANIE ADMINA
     elif rola_wybor == "⚙️ Panel Koordynatora":
         admin_pass = st.text_input("Hasło Główne:", type="password")
         if st.button("WEJDŹ DO CMS"):
@@ -139,7 +162,7 @@ else:
     st.write("---")
 
     # ------------------------------------------
-    # WIDOK: TABLICA ZBIORCZA EVENTU
+    # WIDOK: TABLICA ZBIORCZA EVENTU (PRO TABLE)
     # ------------------------------------------
     if saved_role == "Team_Board":
         st.write(f"### 📋 Harmonogram wyjazdowy: {saved_login}")
@@ -149,29 +172,37 @@ else:
         if df_event.empty:
             st.info("Brak przypisanych aut i slotów do tego wydarzenia.")
         else:
-            # Bezpieczne sprawdzanie kolumn (chroni przed błędem KeyError)
-            oczekiwane_kolumny = ['Data_Slotu', 'Auto', 'Nazwisko', 'Nr_Referencyjny', 'Notatki', 'Link_PDF']
-            for kol in oczekiwane_kolumny:
-                if kol not in df_event.columns:
-                    df_event[kol] = ""  
+            # Filtrowanie archiwalnych slotów
+            df_event['Czy_Aktywny'] = df_event['Data_Slotu'].apply(czy_slot_aktywny)
+            pokaz_archiwalne = st.checkbox("Pokaż archiwalne (zakończone) sloty z poprzednich dni", value=False)
             
-            # Uporządkowanie kolumn do wyświetlenia w tabeli
-            df_tabela = df_event[oczekiwane_kolumny].copy()
-            df_tabela.columns = ['🗓️ Termin', '🚐 Auto', '👨‍🔧 Kierowca / Technik', '🔑 Brama / Nr Ref', '📝 Notatki / Info', 'PDF']
-            
-            df_tabela = df_tabela.sort_values(by='🗓️ Termin')
-            
-            st.dataframe(
-                df_tabela,
-                column_config={
-                    "PDF": st.column_config.LinkColumn(
-                        "📄 Dokument", display_text="Otwórz plik"
-                    )
-                },
-                hide_index=True,
-                use_container_width=True
-            )
-            st.caption("Przesuń tabelę w prawo, aby zobaczyć notatki i linki do dokumentów. Kliknij nagłówek kolumny, aby posortować.")
+            if not pokaz_archiwalne:
+                df_event = df_event[df_event['Czy_Aktywny'] == True]
+                if df_event.empty:
+                    st.success("Wszystkie sloty dla tego eventu zostały już zrealizowane w minionych dniach.")
+
+            if not df_event.empty:
+                # Zabezpieczenie przed brakiem kolumn
+                oczekiwane_kolumny = ['Data_Slotu', 'Auto', 'Nazwisko', 'Nr_Referencyjny', 'Notatki', 'Link_PDF']
+                for kol in oczekiwane_kolumny:
+                    if kol not in df_event.columns:
+                        df_event[kol] = ""  
+                
+                df_tabela = df_event[oczekiwane_kolumny].copy()
+                df_tabela.columns = ['🗓️ Termin', '🚐 Auto', '👨‍🔧 Kierowca / Technik', '🔑 Brama / Nr Ref', '📝 Notatki / Info', 'PDF']
+                
+                # Wyświetlanie PRO Tabeli Streamlita
+                st.dataframe(
+                    df_tabela,
+                    column_config={
+                        "PDF": st.column_config.LinkColumn(
+                            "📄 Dokument", display_text="Otwórz plik"
+                        )
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+                st.caption("Przesuń tabelę w prawo, aby zobaczyć notatki i linki do dokumentów. Kliknij nagłówek kolumny, aby posortować.")
 
     # ------------------------------------------
     # WIDOK ADMINA (CMS)
@@ -279,29 +310,39 @@ else:
     # ------------------------------------------
     elif saved_role in ["Technik", "Kierowca"]:
         df_sloty['Nazwisko_clean'] = df_sloty['Nazwisko'].astype(str).str.strip().str.lower()
-        moje_sloty = df_sloty[df_sloty['Nazwisko_clean'] == str(saved_login).lower().strip()]
+        moje_sloty = df_sloty[df_sloty['Nazwisko_clean'] == str(saved_login).lower().strip()].copy()
         
         if moje_sloty.empty:
             st.info("Nie masz aktualnie przypisanych żadnych slotów.")
         else:
-            for index, row in moje_sloty.iterrows():
-                event_name = row.get('Event', 'Nieznany Event')
-                auto = row.get('Auto', '')
-                ref_num = row.get('Nr_Referencyjny', 'Brak numeru ref.')
-                data_slotu = row.get('Data_Slotu', 'Do ustalenia')
-                notatki = row.get('Notatki', '')
-                link_pdf = row.get('Link_PDF', None)
+            # Filtrowanie archiwalnych dla prywatnego widoku
+            moje_sloty['Czy_Aktywny'] = moje_sloty['Data_Slotu'].apply(czy_slot_aktywny)
+            pokaz_archiwalne_moje = st.checkbox("Pokaż moje archiwalne (zakończone) wyjazdy", value=False)
+            
+            if not pokaz_archiwalne_moje:
+                moje_sloty = moje_sloty[moje_sloty['Czy_Aktywny'] == True]
                 
-                with st.container():
-                    st.markdown(f"### 📍 {event_name}")
-                    st.markdown(f"**🗓 Termin:** `{data_slotu}`")
-                    st.markdown(f"**🔑 Brama / Nr Ref:** `{ref_num}`")
-                    if pd.notna(auto) and str(auto).strip():
-                        st.markdown(f"**🚐 Auto:** `{auto}`")
+            if moje_sloty.empty:
+                 st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
+            else:
+                for index, row in moje_sloty.iterrows():
+                    event_name = row.get('Event', 'Nieznany Event')
+                    auto = row.get('Auto', '')
+                    ref_num = row.get('Nr_Referencyjny', 'Brak numeru ref.')
+                    data_slotu = row.get('Data_Slotu', 'Do ustalenia')
+                    notatki = row.get('Notatki', '')
+                    link_pdf = row.get('Link_PDF', None)
                     
-                    if pd.notna(notatki) and str(notatki).strip():
-                        st.info(f"**Notatka:** {notatki}")
-                    
-                    if pd.notna(link_pdf) and str(link_pdf).strip() != "":
-                        st.link_button(f"📄 Pobierz dokumentację", str(link_pdf))
-                    st.markdown("---")
+                    with st.container():
+                        st.markdown(f"### 📍 {event_name}")
+                        st.markdown(f"**🗓 Termin:** `{data_slotu}`")
+                        st.markdown(f"**🔑 Brama / Nr Ref:** `{ref_num}`")
+                        if pd.notna(auto) and str(auto).strip():
+                            st.markdown(f"**🚐 Auto:** `{auto}`")
+                        
+                        if pd.notna(notatki) and str(notatki).strip():
+                            st.info(f"**Notatka:** {notatki}")
+                        
+                        if pd.notna(link_pdf) and str(link_pdf).strip() != "":
+                            st.link_button(f"📄 Pobierz dokumentację", str(link_pdf))
+                        st.markdown("---")
