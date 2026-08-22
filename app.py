@@ -91,6 +91,20 @@ def parse_dates_for_gantt(data_str):
         except: pass
     return None, None
 
+def get_sort_key(data_str):
+    # Funkcja wyciągająca dokładną datę i godzinę z tekstu w celu poprawnego sortowania
+    if pd.isna(data_str): return datetime.max
+    s = str(data_str)
+    m = re.search(r'(\d{2})\.(\d{2})\.(\d{4})[^\d]*(\d{2}):(\d{2})', s)
+    if m:
+        try: return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)), int(m.group(4)), int(m.group(5)))
+        except: pass
+    m2 = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', s)
+    if m2:
+        try: return datetime(int(m2.group(3)), int(m2.group(2)), int(m2.group(1)))
+        except: pass
+    return datetime.max
+
 # --- GENERATOR PDF (TRYB OFFLINE) ---
 def generate_offline_pdf(df_slots, title_text):
     def clean_pl(text):
@@ -154,7 +168,7 @@ saved_role = cookie_controller.get("sqm_role")
 # ==========================================
 if not saved_login:
     st.write("### Gdzie chcesz wejść?")
-    rola_wybor = st.radio("Wybierz profil:", ["👨‍🔧 Moje prywatne sloty", "📋 Tablica Eventu (Dla Ekipy)", "⚙️ Panel Koordynatora"], horizontal=False)
+    rola_wybor = st.radio("Wybierz profil:", ["👨‍🔧 Moje prywatne sloty", "📋 Tablica Eventu (Dla Ekipy)", "⚙️ Logistyka"], horizontal=False)
     st.write("---")
     
     if rola_wybor == "👨‍🔧 Moje prywatne sloty":
@@ -190,7 +204,6 @@ if not saved_login:
                 df_konta['Login_clean'] = df_konta['Login'].astype(str).str.strip().str.lower()
                 df_konta['PIN_clean'] = df_konta['PIN'].astype(str).str.split('.').str[0].str.strip()
                 
-                # Szukamy pinu ściśle dedykowanego pod wybrany z listy event
                 pin_eventu = df_konta[(df_konta['Rola_clean'] == 'ekipa') & (df_konta['Login_clean'] == wybrany_event.strip().lower())]
                 
                 if not pin_eventu.empty:
@@ -206,7 +219,7 @@ if not saved_login:
             else:
                 st.error("Najpierw wybierz wydarzenie z listy.")
 
-    elif rola_wybor == "⚙️ Panel Koordynatora":
+    elif rola_wybor == "⚙️ Logistyka":
         admin_pass = st.text_input("Hasło Główne:", type="password")
         if st.button("WEJDŹ DO CMS"):
             if admin_pass == st.secrets.get("admin_password", "brak_hasla"):
@@ -242,6 +255,7 @@ else:
         else:
             df_event['Czy_Aktywny'] = df_event['Data_Slotu'].apply(czy_slot_aktywny)
             pokaz_archiwalne = st.checkbox("Pokaż archiwalne (wczorajsze) sloty", value=False)
+            search_query = st.text_input("🔍 Szukaj (np. kierowca, auto, numer ref.)", "").lower()
             
             if not pokaz_archiwalne:
                 df_event = df_event[df_event['Czy_Aktywny'] == True]
@@ -249,44 +263,61 @@ else:
             if not df_event.empty:
                 df_event = df_event.fillna("")
                 
-                # ZBIORCZY PDF DLA EKIPY (Tylko dane z harmonogramu, bez linków do załączników)
-                pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
-                st.download_button(
-                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
-                    data=pdf_bytes,
-                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-                st.write("") 
+                # Poprawne sortowanie dat i godzin
+                df_event['_sort_date'] = df_event['Data_Slotu'].apply(get_sort_key)
+                df_event = df_event.sort_values(by='_sort_date')
                 
-                for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
-                    kierowca = row.get('Nazwisko', 'Nieprzypisany')
-                    auto = row.get('Auto', '')
-                    ref_num = row.get('Nr_Referencyjny', '')
-                    data_slotu = row.get('Data_Slotu', 'Do ustalenia')
-                    notatki = row.get('Notatki', '')
+                # Filtrowanie wyszukiwarką
+                if search_query:
+                    mask = (
+                        df_event['Nazwisko'].astype(str).str.lower().str.contains(search_query) |
+                        df_event['Auto'].astype(str).str.lower().str.contains(search_query) |
+                        df_event['Nr_Referencyjny'].astype(str).str.lower().str.contains(search_query) |
+                        df_event['Notatki'].astype(str).str.lower().str.contains(search_query) |
+                        df_event['Data_Slotu'].astype(str).str.lower().str.contains(search_query)
+                    )
+                    df_event = df_event[mask]
+
+                if not df_event.empty:
+                    pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
+                    st.download_button(
+                        label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                        data=pdf_bytes,
+                        file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                    st.write("") 
                     
-                    with st.container():
-                        st.markdown(f"### 🗓️ {data_slotu}")
-                        colA, colB = st.columns(2)
-                        with colA:
-                            st.markdown(f"**👨‍🔧 Kto jedzie:** `{kierowca}`")
-                            st.markdown(f"**🔑 Brama/Ref:** `{ref_num if ref_num else 'Brak'}`")
-                        with colB:
-                            st.markdown(f"**🚐 Auto:** `{auto if auto else 'Nie podano'}`")
-                                
-                        if str(notatki).strip():
-                            st.info(f"**Ważne info:** {notatki}")
-                        st.divider()
+                    for index, row in df_event.iterrows():
+                        kierowca = row.get('Nazwisko', 'Nieprzypisany')
+                        auto = row.get('Auto', '')
+                        ref_num = row.get('Nr_Referencyjny', '')
+                        data_slotu = row.get('Data_Slotu', 'Do ustalenia')
+                        notatki = row.get('Notatki', '')
+                        
+                        with st.container():
+                            st.markdown(f"### 🗓️ {data_slotu}")
+                            colA, colB = st.columns(2)
+                            with colA:
+                                st.markdown(f"**👨‍🔧 Kto jedzie:** `{kierowca}`")
+                                st.markdown(f"**🔑 Brama/Ref:** `{ref_num if ref_num else 'Brak'}`")
+                            with colB:
+                                st.markdown(f"**🚐 Auto:** `{auto if auto else 'Nie podano'}`")
+                                    
+                            if str(notatki).strip():
+                                st.info(f"**Ważne info:** {notatki}")
+                            st.divider()
+                else:
+                    st.info("Brak wyników wyszukiwania.")
             else:
                 st.success("Wszystkie sloty dla tego eventu zostały już zrealizowane!")
 
     # ------------------------------------------
-    # WIDOK ADMINA (CMS + GANTT)
+    # WIDOK LOGISTYKA (ADMIN)
     # ------------------------------------------
     elif saved_role == "Admin":
-        tryb_admina = st.radio("Wybierz moduł:", ["📊 Wykres Gantta", "➕ Dodaj nowy slot", "✏️ Edytuj / Usuń istniejący"], horizontal=True)
+        tryb_admina = st.radio("Wybierz moduł:", ["📊 Wykres Gantta", "🗂️ Baza (Szukaj/Filtruj)", "➕ Dodaj nowy slot", "✏️ Edytuj / Usuń istniejący"], horizontal=True)
         st.write("---")
         
         if tryb_admina == "📊 Wykres Gantta":
@@ -324,6 +355,19 @@ else:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("Nie znaleziono odpowiednio sformatowanych dat dla tego eventu (wymagany format to np. '24.08.2026, 08:00 - 11:00').")
+
+        elif tryb_admina == "🗂️ Baza (Szukaj/Filtruj)":
+            st.write("### 🗂️ Pełna Baza Danych (Interaktywna)")
+            st.info("💡 Kliknij w nagłówek tabeli, aby sortować. Użyj ikony lupy w prawym rogu tabeli, aby wyszukiwać frazy i filtrować widok.")
+            
+            if df_sloty.empty:
+                st.warning("Baza slotów jest pusta.")
+            else:
+                df_view = df_sloty.copy().fillna("")
+                df_view['_sort_date'] = df_view['Data_Slotu'].apply(get_sort_key)
+                df_view = df_view.sort_values(by='_sort_date').drop(columns=['_sort_date'])
+                
+                st.dataframe(df_view, use_container_width=True, hide_index=True)
 
         elif tryb_admina == "➕ Dodaj nowy slot":
             with st.form("add_form", clear_on_submit=True):
@@ -434,41 +478,61 @@ else:
         else:
             moje_sloty['Czy_Aktywny'] = moje_sloty['Data_Slotu'].apply(czy_slot_aktywny)
             pokaz_archiwalne_moje = st.checkbox("Pokaż moje archiwalne (zakończone) wyjazdy", value=False)
+            search_query_moje = st.text_input("🔍 Szukaj (np. event, auto, numer ref.)", "").lower()
             
             if not pokaz_archiwalne_moje:
                 moje_sloty = moje_sloty[moje_sloty['Czy_Aktywny'] == True]
                 
             if not moje_sloty.empty:
-                pdf_bytes = generate_offline_pdf(moje_sloty, f"Harmonogram - {saved_login}")
-                st.download_button(
-                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
-                    data=pdf_bytes,
-                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-                st.write("") 
                 
-                for index, row in moje_sloty.sort_values(by='Data_Slotu').iterrows():
-                    event_name = row.get('Event', 'Nieznany Event')
-                    auto = row.get('Auto', '')
-                    ref_num = row.get('Nr_Referencyjny', '')
-                    data_slotu = row.get('Data_Slotu', 'Do ustalenia')
-                    notatki = row.get('Notatki', '')
-                    link_pdf = row.get('Link_PDF', '')
+                # Poprawne sortowanie dat
+                moje_sloty['_sort_date'] = moje_sloty['Data_Slotu'].apply(get_sort_key)
+                moje_sloty = moje_sloty.sort_values(by='_sort_date')
+                
+                # Filtrowanie wyszukiwarką
+                if search_query_moje:
+                    mask = (
+                        moje_sloty['Event'].astype(str).str.lower().str.contains(search_query_moje) |
+                        moje_sloty['Auto'].astype(str).str.lower().str.contains(search_query_moje) |
+                        moje_sloty['Nr_Referencyjny'].astype(str).str.lower().str.contains(search_query_moje) |
+                        moje_sloty['Notatki'].astype(str).str.lower().str.contains(search_query_moje) |
+                        moje_sloty['Data_Slotu'].astype(str).str.lower().str.contains(search_query_moje)
+                    )
+                    moje_sloty = moje_sloty[mask]
+
+                if not moje_sloty.empty:
+                    pdf_bytes = generate_offline_pdf(moje_sloty, f"Harmonogram - {saved_login}")
+                    st.download_button(
+                        label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                        data=pdf_bytes,
+                        file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                    st.write("") 
                     
-                    with st.container():
-                        st.markdown(f"### 📍 {event_name}")
-                        st.markdown(f"**🗓 Termin:** `{data_slotu}`")
-                        st.markdown(f"**🔑 Brama / Nr Ref:** `{ref_num if ref_num else 'Brak'}`")
-                        if auto:
-                            st.markdown(f"**🚐 Auto:** `{auto}`")
+                    for index, row in moje_sloty.iterrows():
+                        event_name = row.get('Event', 'Nieznany Event')
+                        auto = row.get('Auto', '')
+                        ref_num = row.get('Nr_Referencyjny', '')
+                        data_slotu = row.get('Data_Slotu', 'Do ustalenia')
+                        notatki = row.get('Notatki', '')
+                        link_pdf = row.get('Link_PDF', '')
                         
-                        if notatki:
-                            st.info(f"**Notatka:** {notatki}")
-                        
-                        if str(link_pdf).strip():
-                            st.link_button(f"📄 Pobierz wjazdówkę", str(link_pdf))
-                        st.markdown("---")
+                        with st.container():
+                            st.markdown(f"### 📍 {event_name}")
+                            st.markdown(f"**🗓 Termin:** `{data_slotu}`")
+                            st.markdown(f"**🔑 Brama / Nr Ref:** `{ref_num if ref_num else 'Brak'}`")
+                            if auto:
+                                st.markdown(f"**🚐 Auto:** `{auto}`")
+                            
+                            if notatki:
+                                st.info(f"**Notatka:** {notatki}")
+                            
+                            if str(link_pdf).strip():
+                                st.link_button(f"📄 Pobierz wjazdówkę", str(link_pdf))
+                            st.markdown("---")
+                else:
+                    st.info("Brak wyników wyszukiwania.")
             else:
                  st.success("Wszystkie Twoje zadania zostały już zrealizowane.")
