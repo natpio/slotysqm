@@ -249,6 +249,17 @@ else:
             if not df_event.empty:
                 df_event = df_event.fillna("")
                 
+                # ZBIORCZY PDF DLA EKIPY (Tylko dane z harmonogramu, bez linków do załączników)
+                pdf_bytes = generate_offline_pdf(df_event, f"Harmonogram SQM - {saved_login}")
+                st.download_button(
+                    label="📥 Pobierz plan offline (PDF - Brak Zasięgu)",
+                    data=pdf_bytes,
+                    file_name=f"Harmonogram_{str(saved_login).replace(' ','_')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                st.write("") 
+                
                 for index, row in df_event.sort_values(by='Data_Slotu').iterrows():
                     kierowca = row.get('Nazwisko', 'Nieprzypisany')
                     auto = row.get('Auto', '')
