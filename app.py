@@ -39,6 +39,7 @@ def load_css(file_name):
 load_css("style.css")
 
 # --- KONFIGURACJA DYSKU ---
+# Pamiętaj o podmianie na swój ID docelowego folderu
 DRIVE_FOLDER_ID = "TWÓJ_ID_FOLDERU_NA_DRIVE" 
 
 def upload_to_drive(uploaded_file, event_name, tech_name):
